@@ -19,21 +19,27 @@ class Word():
 class Words():
     def __init__(self):
         self.words = []
-        self.min = None
-        self.exclude = None
-        self.condition = None
+        self.fetch_query = 'word for word in self.words'
+        self.additional_conditions = []
 
     def from_file(self,filename):
-        pass
+        with open(filename, 'rb') as f:
+            content = f.read()
+        # self.words = [Word(word, freq???) for word in words_in_text(content)]
 
-    def min(self):
-        pass
+    def min(self, min):
+        self.additional_conditions.append('word.count > {min}'.format(min=min))
 
-    def exclude(self):
-        pass
+    def exclude(self, exclude_list):
+        self.additional_conditions.append('word not in {exclude_list}'.format(exclude_list=exclude_list))
 
     def fetch(self):
-        pass
+        stmt = '[{q} {cond}]'.format(q=self.fetch_query)
+        if len(additional_conditions) > 0:
+            cond = 'if {}'.format(' and '.join(self.additional_conditions))
+            stmt.format(cond=cond)
+            self.additional_conditions = [] #reset
+        return eval(stmt)
 
     def display_report(self, format='table'):
         pass
