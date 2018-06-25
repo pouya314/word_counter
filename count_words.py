@@ -8,32 +8,34 @@ from prettytable import PrettyTable
 
 
 def validate_order(func):
-    def func_wrapper(_, value):
+    def func_wrapper(obj, value):
         if value not in ['desc', 'asc']:
             raise click.BadParameter("Sort order has to be either 'desc' or 'asc'.")
-        return func(_, value)
+        return func(obj, value)
     return func_wrapper
 
 
 def validate_minimum(func):
-    def func_wrapper(_, value):
+    def func_wrapper(obj, value):
         if value is None:
-            return
+            return obj
         if value <= 0:
             raise click.BadParameter('Should be a positive integer value.')
-        return func(_, value)
+        return func(obj, value)
     return func_wrapper
 
 
 def validate_exclude_list(func):
-    def func_wrapper(_, value):
+    def func_wrapper(obj, value):
         if value is None:
-            return
+            return obj
         excludes = [i.strip().upper() for i in value.strip().split(',')]
         excludes = [i for i in excludes if i != ''] # forgive empty values, extra commas, etc
+        if len(excludes) == 0:
+            return obj
         if not all(len(words_in_text(exclude)) == 1 for exclude in excludes):
             raise click.BadParameter('Should be a Comma-separated list of words only.')
-        return func(_, excludes)
+        return func(obj, excludes)
     return func_wrapper
 
 
@@ -63,14 +65,17 @@ class Words():
             content = f.read().replace('\n', '')
         counts = Counter([detected_word.upper() for detected_word in words_in_text(content)])
         self.words = [Word(word, counts[word]) for word in counts]
+        return self
 
     @validate_minimum
     def min(self, min):
         self.additional_conditions.append('word.frequency >= {min}'.format(min=min))
+        return self
 
     @validate_exclude_list
     def exclude(self, exclude_list):
         self.additional_conditions.append('word.content not in {exclude_list}'.format(exclude_list=exclude_list))
+        return self
 
     @validate_order
     def fetch(self, order='desc'):
@@ -106,12 +111,7 @@ def print_report(rows):
     help="Sort order for word frequencies. 'desc' or 'asc'. Defaults to 'desc'.")
 def count_words(filename, minimum, exclude, order):
     """ Main click command for counting words in a file. """
-    words = Words()
-    words.from_file(filename)
-    if minimum: words.min(minimum)
-    if exclude: words.exclude(exclude)
-    rows = words.fetch(order)
-
+    rows = Words().from_file(filename).min(minimum).exclude(exclude).fetch(order)
     print_report(rows)
 
 
