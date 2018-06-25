@@ -10,6 +10,7 @@ from prettytable import PrettyTable
 
 
 def validate_order(func):
+    """ Validation decorator to ensure order by value is either desc or asc. """
     def func_wrapper(obj, order):
         if order not in ['desc', 'asc']:
             raise click.BadParameter("Sort order has to be either 'desc' or 'asc'.")
@@ -19,22 +20,24 @@ def validate_order(func):
 
 
 def validate_filename(func):
+    """ 
+    Validation decorator to ensure filename exists. 
+    Checks both full and relative paths.
+    """
     def func_wrapper(obj, filename):
-        # try full path
-        file = Path(filename)
+        file = Path(filename) # full path
         if file.is_file():
             return func(obj, filename)
-        # try relative path
-        file = Path(os.path.join(os.getcwd(), filename))
+        file = Path(os.path.join(os.getcwd(), filename)) # relative
         if file.is_file():
             return func(obj, filename)
-        # both full & relative paths didn't work, so raise an error.
         raise click.BadParameter("filename provided does not exist.")
 
     return func_wrapper
 
 
 def validate_minimum(func):
+    """ Validarion decorator to ensure minimum value is a positive integer value. """
     def func_wrapper(obj, minimum):
         if minimum is None:
             return obj
@@ -46,6 +49,11 @@ def validate_minimum(func):
 
 
 def validate_exclude_list(func):
+    """
+    Validation decorator to ensure exclude list is:
+    - a comma-separated list and 
+    - consists of words only.
+    """
     def func_wrapper(obj, exclude_list):
         if exclude_list is None:
             return obj
@@ -60,21 +68,33 @@ def validate_exclude_list(func):
     return func_wrapper
 
 
-# word_pattern = re.compile(r"[\w']+")
 word_pattern = re.compile(r"\d*[a-zA-Z'][a-zA-Z'\d]*")
-
-
 def words_in_text(s):
+    """ Detect and return the list of words in the given text/string.
+
+    Args:
+        s (str): String to search for words in.
+
+    Returns:
+        List of detected words. Each word will be in string format.
+    """
     return word_pattern.findall(s)
 
 
 class Word():
+    """ Resource that represents a single word and its frequency. """
     def __init__(self, content, frequency):
         self.content = content
         self.frequency = frequency
 
 
 class Words():
+    """ Resource that represents a collection of words. 
+
+    This is the main interface for user to specify:
+    - Input data source
+    - Filtering & sorting conditions before fetching the output
+    """
     def __init__(self):
         self.words = []
         self.fetch_query = 'word for word in self.words'
@@ -108,7 +128,6 @@ class Words():
             conditions = ''
         stmt = stmt.format(query=self.fetch_query, conditions=conditions)
         reverse = True if order == 'desc' else False
-        print('Statement => {}'.format(stmt))
         return sorted(eval(stmt), key=attrgetter('frequency'), reverse=reverse)
 
 
