@@ -7,6 +7,14 @@ from operator import attrgetter
 from prettytable import PrettyTable
 
 
+def validate_order(func):
+    def func_wrapper(_, value):
+        if value not in ['desc', 'asc']:
+            raise click.BadParameter("Sort order has to be either 'desc' or 'asc'.")
+        return func(_, value)
+    return func_wrapper
+
+
 def validate_minimum(func):
     def func_wrapper(_, value):
         if value is None:
@@ -64,9 +72,8 @@ class Words():
     def exclude(self, exclude_list):
         self.additional_conditions.append('word.content not in {exclude_list}'.format(exclude_list=exclude_list))
 
+    @validate_order
     def fetch(self, order='desc'):
-        assert order in ['desc', 'asc'], "Sort order has to be one of 'desc' or 'asc'."
-
         stmt = '[{query} {conditions}]'
         if len(self.additional_conditions) > 0:
             conditions = 'if {}'.format(' and '.join(self.additional_conditions))
