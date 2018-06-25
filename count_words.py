@@ -7,9 +7,30 @@ from operator import attrgetter
 from prettytable import PrettyTable
 
 
+def validate_minimum(func):
+    def func_wrapper(_, value):
+        if value is None:
+            return
+        if value <= 0:
+            raise click.BadParameter('Should be a positive integer value.')
+        return func(_, value)
+    return func_wrapper
+
+
+def validate_exclude_list(func):
+    def func_wrapper(_, value):
+        if value is None:
+            return
+        excludes = [i.strip().upper() for i in value.strip().split(',')]
+        excludes = [i for i in excludes if i != ''] # forgive empty values, extra commas, etc
+        if not all(len(words_in_text(exclude)) == 1 for exclude in excludes):
+            raise click.BadParameter('Should be a Comma-separated list of words only.')
+        return func(_, excludes)
+    return func_wrapper
+
+
 #word_pattern = re.compile(r"[\w']+")
 word_pattern = re.compile(r"\d*[a-zA-Z'][a-zA-Z'\d]*")
-
 def words_in_text(s):        
     return word_pattern.findall(s)
 
@@ -32,9 +53,11 @@ class Words():
         counts = Counter([detected_word.upper() for detected_word in words_in_text(content)])
         self.words = [Word(word, counts[word]) for word in counts]
 
+    @validate_minimum
     def min(self, min):
         self.additional_conditions.append('word.frequency >= {min}'.format(min=min))
 
+    @validate_exclude_list
     def exclude(self, exclude_list):
         self.additional_conditions.append('word.content not in {exclude_list}'.format(exclude_list=exclude_list))
 
@@ -49,25 +72,8 @@ class Words():
             conditions = ''
         stmt = stmt.format(query=self.fetch_query, conditions=conditions)
         reverse = True if order == 'desc' else False
+        print('Statement => {}'.format(stmt))
         return sorted(eval(stmt), key=attrgetter('frequency'), reverse=reverse)
-
-
-def validate_minimum(ctx, param, value):
-    if value is None:
-        return
-    if value <= 0:
-        raise click.BadParameter('Should be a positive integer value.')
-    return value
-
-
-def validate_exclude_list(ctx, param, value):
-    if value is None:
-        return
-    excludes = [i.strip().upper() for i in value.strip().split(',')]
-    excludes = [i for i in excludes if i != ''] # forgive empty values, extra commas, etc
-    if not all(len(words_in_text(exclude)) == 1 for exclude in excludes):
-        raise click.BadParameter('Should be a Comma-separated list of words only.')            
-    return excludes
 
 
 def print_report(rows):
@@ -81,9 +87,9 @@ def print_report(rows):
 
 @click.command()
 @click.argument('filename')
-@click.option('--minimum', default=None, type=int, callback=validate_minimum, 
+@click.option('--minimum', default=None, type=int, 
     help='minimum count of words.')
-@click.option('--exclude', default=None, type=str, callback=validate_exclude_list, 
+@click.option('--exclude', default=None, type=str, 
     help="""Comma-separated list of words to be excluded from the report.
     If keyword contains apostrophe character, please escape it. Example: let\\'s.""")
 @click.option('--order', default='desc', type=str, 
