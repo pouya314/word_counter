@@ -1,47 +1,70 @@
 #!/usr/bin/env python
 
 import click
+import os
 import re
 from collections import Counter
 from operator import attrgetter
+from pathlib import Path
 from prettytable import PrettyTable
 
 
 def validate_order(func):
-    def func_wrapper(obj, value):
-        if value not in ['desc', 'asc']:
+    def func_wrapper(obj, order):
+        if order not in ['desc', 'asc']:
             raise click.BadParameter("Sort order has to be either 'desc' or 'asc'.")
-        return func(obj, value)
+        return func(obj, order)
+
+    return func_wrapper
+
+
+def validate_filename(func):
+    def func_wrapper(obj, filename):
+        # try full path
+        file = Path(filename)
+        if file.is_file():
+            return func(obj, filename)
+        # try relative path
+        file = Path(os.path.join(os.getcwd(), filename))
+        if file.is_file():
+            return func(obj, filename)
+        # both full & relative paths didn't work, so raise an error.
+        raise click.BadParameter("filename provided does not exist.")
+
     return func_wrapper
 
 
 def validate_minimum(func):
-    def func_wrapper(obj, value):
-        if value is None:
+    def func_wrapper(obj, minimum):
+        if minimum is None:
             return obj
-        if value <= 0:
+        if minimum <= 0:
             raise click.BadParameter('Should be a positive integer value.')
-        return func(obj, value)
+        return func(obj, minimum)
+
     return func_wrapper
 
 
 def validate_exclude_list(func):
-    def func_wrapper(obj, value):
-        if value is None:
+    def func_wrapper(obj, exclude_list):
+        if exclude_list is None:
             return obj
-        excludes = [i.strip().upper() for i in value.strip().split(',')]
-        excludes = [i for i in excludes if i != ''] # forgive empty values, extra commas, etc
+        excludes = [i.strip().upper() for i in exclude_list.strip().split(',')]
+        excludes = [i for i in excludes if i != '']  # forgive empty values, extra commas, etc
         if len(excludes) == 0:
             return obj
         if not all(len(words_in_text(exclude)) == 1 for exclude in excludes):
             raise click.BadParameter('Should be a Comma-separated list of words only.')
         return func(obj, excludes)
+
     return func_wrapper
 
 
-#word_pattern = re.compile(r"[\w']+")
+# word_pattern = re.compile(r"[\w']+")
 word_pattern = re.compile(r"\d*[a-zA-Z'][a-zA-Z'\d]*")
-def words_in_text(s):        
+
+
+def words_in_text(s):
     return word_pattern.findall(s)
 
 
@@ -57,10 +80,8 @@ class Words():
         self.fetch_query = 'word for word in self.words'
         self.additional_conditions = []
 
-    def from_file(self,filename):
-        #
-        # >> TODO(POUYA) << : make relative paths work as well.
-        #
+    @validate_filename
+    def from_file(self, filename):
         with open(filename, 'r') as f:
             content = f.read().replace('\n', '')
         counts = Counter([detected_word.upper() for detected_word in words_in_text(content)])
@@ -68,8 +89,8 @@ class Words():
         return self
 
     @validate_minimum
-    def min(self, min):
-        self.additional_conditions.append('word.frequency >= {min}'.format(min=min))
+    def minimum(self, minimum):
+        self.additional_conditions.append('word.frequency >= {minimum}'.format(minimum=minimum))
         return self
 
     @validate_exclude_list
@@ -82,7 +103,7 @@ class Words():
         stmt = '[{query} {conditions}]'
         if len(self.additional_conditions) > 0:
             conditions = 'if {}'.format(' and '.join(self.additional_conditions))
-            self.additional_conditions = [] #reset
+            self.additional_conditions = []  # reset
         else:
             conditions = ''
         stmt = stmt.format(query=self.fetch_query, conditions=conditions)
@@ -102,16 +123,16 @@ def print_report(rows):
 
 @click.command()
 @click.argument('filename')
-@click.option('--minimum', default=None, type=int, 
-    help='minimum count of words.')
-@click.option('--exclude', default=None, type=str, 
-    help="""Comma-separated list of words to be excluded from the report.
+@click.option('--minimum', default=None, type=int,
+              help='minimum count of words.')
+@click.option('--exclude', default=None, type=str,
+              help="""Comma-separated list of words to be excluded from the report.
     If keyword contains apostrophe character, please escape it. Example: let\\'s.""")
-@click.option('--order', default='desc', type=str, 
-    help="Sort order for word frequencies. 'desc' or 'asc'. Defaults to 'desc'.")
+@click.option('--order', default='desc', type=str,
+              help="Sort order for word frequencies. 'desc' or 'asc'. Defaults to 'desc'.")
 def count_words(filename, minimum, exclude, order):
     """ Main click command for counting words in a file. """
-    rows = Words().from_file(filename).min(minimum).exclude(exclude).fetch(order)
+    rows = Words().from_file(filename).minimum(minimum).exclude(exclude).fetch(order)
     print_report(rows)
 
 
