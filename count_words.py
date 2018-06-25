@@ -48,6 +48,9 @@ class Words():
         self.additional_conditions = []
 
     def from_file(self,filename):
+        #
+        # >> TODO(POUYA) << : make relative paths work as well.
+        #
         with open(filename, 'r') as f:
             content = f.read().replace('\n', '')
         counts = Counter([detected_word.upper() for detected_word in words_in_text(content)])
